@@ -1,10 +1,10 @@
 import cv2
 import numpy as np
-from dataclasses import dataclass
+import dataclasses
 
 class EZTrackbars:
 
-    @dataclass
+    @dataclasses.dataclass
     class Trackbar:
         name: str
         variable: str

@@ -1,6 +1,5 @@
 import numpy as np
 import cv2
-import textwrap
 
 
 def heatmap(img:np.ndarray, cmap:int=None, min_value:float=None, max_value:float=None) -> np.ndarray:
@@ -21,8 +20,10 @@ def heatmap(img:np.ndarray, cmap:int=None, min_value:float=None, max_value:float
 
 
 def put_wrapped_text(img:np.ndarray, text:str, width:int, gap:int, org:tuple, 
-                   font:int=cv2.FONT_HERSHEY_PLAIN, scale:float=1.0,
-                   color:tuple=(0, 0, 255), thickness:int=1) -> None:
+                     font:int, scale:float, color:tuple, thickness:int=1, **kwargs) -> None:
+    # IMPORTS ########
+    import textwrap
+    ##################
     textsize = cv2.getTextSize(text, font, scale, thickness)[0]
     gap = textsize[1] + gap
     char_size = textsize[0]/len(text)
@@ -33,7 +34,7 @@ def put_wrapped_text(img:np.ndarray, text:str, width:int, gap:int, org:tuple,
     for i, line in enumerate(wrapped_text):
         x = org[0]
         y = int(org[1] + i * gap)
-        cv2.putText(img, line, (x, y), font, scale, color, thickness)
+        cv2.putText(img, line, (x, y), font, scale, color, thickness, **kwargs)
 
 
 def overlay_image_alpha(img, img_overlay, x, y, alpha_mask=None):

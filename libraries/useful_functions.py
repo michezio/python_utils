@@ -1,8 +1,3 @@
-import datetime
-import time
-import colorsys
-import random
-
 def makeChunks(lst:list, n:int, padding:bool=True) -> list:
     '''
     Yield successive n-sized chunks from lst.
@@ -16,22 +11,49 @@ def makeChunks(lst:list, n:int, padding:bool=True) -> list:
 
 
 def get_timestamp(format="%Y%m%d_%H%M%S"):
+    # IMPORTS ########
+    import datetime
+    ##################
     return datetime.datetime.now().strftime(format)
 
 
-def precise_sleep(duration, get_now=time.perf_counter):
-    now = get_now()
+def precise_sleep(duration, get_now=None):
+    # IMPORTS ########
+    import time
+    ##################
+    now = time.perf_counter if get_now is None else get_now()
     end = now + duration
     while now < end:
         now = get_now()
 
 
-def color_generator(initial:int) -> tuple:
+def hsv_color(hue, sat, value):
+    # IMPORTS ########
+    import colorsys
+    ##################
+    """ hue : 0-360, sat : 0-1, value : 0-1 """
+    return tuple(int(x * 255) for x in colorsys.hsv_to_rgb((hue % 360) / 360, sat, value))
+
+
+def color_generator(initial:int, step:int) -> tuple:
+    # IMPORTS ########
+    import colorsys
+    ##################
     hue = initial
     while True:
-        yield tuple(map(lambda x: int(x*255), colorsys.hsv_to_rgb(hue/255, 1, 1)))
-        hue += 206
-        hue %= 256   
+        yield tuple(int(x * 255) for x in colorsys.hsv_to_rgb(hue / 360, 1, 1))
+        hue += step
+        hue %= 360   
+
+
+def brighten_color(color:tuple, percentage):
+    factor = (1 + percentage * 0.01)
+    return (max(0, min(255, channel * factor)) for channel in color)
+
+
+def darken_color(color:tuple, percentage):
+    factor = (1 - percentage * 0.01)
+    return (max(0, min(255, channel * factor)) for channel in color)
 
 
 def random_color(hashable=None):
@@ -40,6 +62,9 @@ def random_color(hashable=None):
     If hashable is present, the random color will be deterministic and 
     will be always the same for that object
     """
+    # IMPORTS ########
+    import random
+    ##################
     if hashable is None:
         seed = random.randint(0, 1e9-1)
     else:
