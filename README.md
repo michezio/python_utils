@@ -17,3 +17,4 @@ NOTE: sometimes when a single function depends on a Python module, its import st
 - `image_utilities` contains many functions to be used with NumPy and OpenCV to manipulate and do various stuff with images.
 - `useful_functions` a collection of many useful functions that I have stumbled upon and have rewrittern from scratch many times in many projects.
 - `bit_stream` old project, class `BitStream` provides a way to create a sequence of pure boolean digits to be exported in files without being limited at 8-bit chunks. Not optimized for performace but pretty easy to use. This was more of a toy project from when I was studying compression algorithms and is not inteded to be used in production, surely exist something thousand times better :).
+- `serial_relay_controller` classes to manage a relay board (using a line driver like the SP232EEN or similar) over an RS-232 serial connection.
