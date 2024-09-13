@@ -1,4 +1,77 @@
-def makeChunks(lst:list, n:int, padding:bool=True) -> list:
+class ObjectFromDict:
+    """
+    Hacky way to convert a dictionary into an object with attributes
+
+    Notes
+    -----
+    All the attributes are from the dictionary (key, value) pairs and the
+    value is automatically converted to int or float if possible
+
+    All the methods are from the dictionary (key, value) pairs (when value is
+    a callable). Beware that all the added methods will behave as static
+    methods and are not checked so use this at your own risk
+    """
+
+    def __init__(self, dictionary:dict):
+        """
+        Constructor
+
+        Parameters
+        ----------
+        dictionary : dict
+            the dictionary to be converted into an object. Keys are converted
+            into object attributes and their associated value is stored into
+            them after automatic conversion into int or float if possible
+        """
+        if not isinstance(dictionary, dict):
+            raise ValueError("argument 'dictionary' bust be of type 'dict'")
+
+        for key, value in dictionary.items():
+            try:
+                self.__dict__[key] = int(value)
+            except:
+                try:
+                    self.__dict__[key] = float(value)
+                except:
+                    self.__dict__[key] = value
+
+
+class ObjectFromJSON(ObjectFromDict):
+    """
+    Hacky way to convert a JSON file into an object with attributes
+
+    Notes
+    -----
+    All the attributes are from the JSON (key, value) pairs and the 
+    value is automatically converted to int or float if possible
+
+    All the methods are from the JSON (key, value) pairs (when value is a
+    callable). Beware that all the added methods will behave as static methods
+    and are not checked so use this at your own risk
+    """
+
+    def __init__(self, json_path:str):
+        """
+        Constructor
+
+        Parameters
+        ----------
+        json_path : str
+            path to the JSON file to be converted into an object. Keys are
+            converted into object attributes and their associated value is
+            stored into them after automatic conversion into int or float
+            if possible
+        """
+        
+        import json
+        
+        with open(json_path, 'r') as file:
+            d = json.load(file)
+
+        super().__init__(d)
+
+
+def make_chunks(lst:list, n:int, padding:bool=True) -> list:
     '''
     Yield successive n-sized chunks from lst.
     If padding is true, the last chunks will contain
@@ -10,7 +83,7 @@ def makeChunks(lst:list, n:int, padding:bool=True) -> list:
         yield lst[i:i + n]
 
 
-def get_timestamp(format="%Y%m%d_%H%M%S"):
+def get_timestamp(format:str="%Y%m%d_%H%M%S"):
     # IMPORTS ########
     import datetime
     ##################
@@ -157,3 +230,149 @@ def find_best_arrangement(N):
                 best_height = height
 
     return best_width, best_height
+
+
+def create_shared_array(shape):
+    """
+    Creates a shareable multiprocessing.Array with given shape
+
+    Parameters
+    ----------
+    shape : tuple or list
+        size of the shared array along each dimension
+
+    Returns
+    -------
+    multiprocessing.Array
+        the 1-dimensionale shared array with size equal to the product
+        of each element of the shape tuple or list
+    """
+    import multiprocessing
+    import ctypes
+    import numpy as np
+    return multiprocessing.Array(ctypes.c_uint8, int(np.prod(shape)), lock=False)
+
+
+def shared_to_numpy_array(shared_array, shape):
+    """
+    Interprets a raw 1-dimensional buffer (eg. a shared multiprocessing.Array)
+    as a numpy.ndarray with given shape
+
+    Parameters
+    ----------
+    shared_array : buffer_like
+        an object that exposes the buffer interface
+    shape : tuple or list
+        shape of the numpy.ndarray along each dimension. The size of the
+        shared object must be equal to the product of each element of the
+        shape tuple or list
+
+    Returns
+    -------
+    numpy.ndarray
+        the shared array interpreted as an n-dimensional array of given shape 
+    """
+    import numpy as np
+    buf = np.frombuffer(shared_array, dtype=np.uint8)
+    buf = buf.reshape(shape)
+    return buf
+
+
+def send_ipc_message(channel, msg):
+    """
+    Send a message (pickleable object) in an IPC channel
+
+    Parameters
+    ----------
+    channel : multiprocessing.PipeConnection or multiprocessing.Queue
+        the channel where to send the message
+    msg : object
+        a picleable object to be sent into the channel
+
+    Raises
+    ------
+    NotImplementedError
+        the channel type is not supported
+    """
+    import multiprocessing
+    
+    if channel is None:
+        return
+
+    pipe_instance = multiprocessing.connection.PipeConnection if os.name == 'nt' else multiprocessing.connection.Connection
+
+    if isinstance(channel, pipe_instance):
+        channel.send(msg)
+        
+    elif isinstance(channel, multiprocessing.queues.Queue):
+        channel.put_nowait(msg)
+
+    else:
+        raise NotImplementedError
+
+
+def receive_ipc_message(channel):
+    """
+    Receive a message (pickleable object) from an IPC channel
+
+    Parameters
+    ----------
+    channel : multiprocessing.PipeConnection or multiprocessing.Queue
+        the channel from where to receive the message
+
+    Returns
+    -------
+    object or None
+        a pickleable object received from the channel if present or None
+
+    Raises
+    ------
+    NotImplementedError
+        the channel type is not supported
+    """
+    import multiprocessing
+    
+    if channel is None:
+        return None
+
+    pipe_instance = multiprocessing.connection.PipeConnection if os.name == 'nt' else multiprocessing.connection.Connection
+        
+    if isinstance(channel, pipe_instance):
+        if channel.poll(0):
+            return channel.recv()
+        else:
+            return None
+
+    elif isinstance(channel, multiprocessing.queues.Queue):
+        try:
+            return channel.get_nowait()
+        except queue.Empty:
+            return None
+    
+    else:
+        raise NotImplementedError
+
+
+def logged_print(*args, tag:str=None, just:int=8, time_format:str="%Y-%m-%d %H:%M:%S.%f", **kwargs):
+    """
+    Print with logging information in the format:
+    `[ timestamp ] [ tag ] message`
+
+    Parameters
+    ----------
+    tag : str or None
+        the tag to be used in `[ tag ]` if present
+    just : int
+        min size of tag field, adds padding if `len(tag) < just`
+    time_format : str
+        format to be used in the timestamp field
+        follows the format of `datetime.strftime`
+    
+    Notes
+    -----
+    same parameters as `print`
+    """
+    import datetime
+    timestamp = "[ " + datetime.datetime.now().strftime(time_format) + " ]"
+    logtag = "" if tag == None else "[ " + tag.ljust(just) + " ]"
+    print(timestamp, logtag, *args, **kwargs)
