@@ -27,6 +27,9 @@ class Point:
     def __sub__(self, other):
         return Point(self.x - other.x, self.y - other.y)
     
+    def __mul__(self, other:float):
+        return Point(self.x * other, self.y * other)
+    
     def sqdist(self, other):
         return (self.x - other.x)**2 + (self.y - other.y)**2
     
@@ -97,30 +100,50 @@ def drawGrid(frame:np.ndarray, size:tuple[int, int], grid:tuple[int, int], color
         cv2.addWeighted(overlay, alpha, frame, 1 - alpha, 0, dst=frame)
         cv2.addWeighted(overlay_centrals, min(1, alpha * 1.5), frame, max(0, 1 - alpha * 1.5), 0, dst=frame)
 
+def getResizeParamsKeepRatio(w:int, h:int, max_size:int=1000) -> tuple[tuple[int, int], float]:
+    if w <= max_size and h <= max_size:
+        scale = 1.0
+    elif h >= w and h > max_size:
+        scale = max_size / float(h)
+        w = int(w * scale)
+        h = max_size
+    elif w > h and w > max_size:
+        scale = max_size / float(w)
+        w = max_size
+        h = int(h * scale)
+    return (w, h), scale
 
+def resizeImageIfBiggerKeepRatio(image:cv2.Mat, max_size:int=1000, inter:int=cv2.INTER_AREA) -> tuple[cv2.Mat, tuple[int, int], float]:
+    h, w = image.shape[:2]
 
-def extractImage(file_path:str, out_path:str, postfix:str, size:tuple[int], grid:tuple[int], autoclose:bool, process:bool):
+    dim, scale = getResizeParamsKeepRatio(w, h, max_size)
+
+    if scale == 1.0:
+        return image.copy(), dim, 1.0
+    else:
+        return cv2.resize(image, dim, interpolation=inter), dim, scale
+
+def extractImage(file_path:str, out_path:str, postfix:str, out_size:tuple[int, int], grid:tuple[int, int], max_win_size:int, autoclose:bool, process:bool):
     global show_grid
 
     pointsList:list[Point] = []
-    mouse_down = False
 
     image_name = os.path.basename(file_path)
     image_extensions = image_name.split('.')[-1]
     image_name = '.'.join(image_name.split('.')[:-1])
     image_original = cv2.imread(file_path)
+    image_reduced, window_size, scale = resizeImageIfBiggerKeepRatio(image_original, max_win_size)
 
-    width, height = image_original.shape[:-1][::-1]
+    if out_size is None:
+        out_size = image_original.shape[:2][::-1]
+    out_size_reduced, _ = getResizeParamsKeepRatio(out_size[0], out_size[1], max_win_size)
 
-    main_window_name = f"InnerImg ({file_path})"
-    extr_window_name = "InnerImg - Extracted"
-
-    cv2.namedWindow(main_window_name, cv2.WINDOW_AUTOSIZE)
+    mouse_down = False
 
     def onMouseClick(event, x, y, flags, param):
-        nonlocal mouse_down, pointsList, width, height
+        nonlocal mouse_down, pointsList, window_size
 
-        if not 0 <= x < width or not 0 <= y < height:
+        if not 0 <= x < window_size[0] or not 0 <= y < window_size[1]:
             mouse_down = False
             return
 
@@ -140,20 +163,29 @@ def extractImage(file_path:str, out_path:str, postfix:str, size:tuple[int], grid
                 pointsList.append(Point(x, y))
             else:
                 movePt(x, y)
-                
         elif event == cv2.EVENT_MOUSEMOVE and mouse_down:
             movePt(x, y)
-
         elif event == cv2.EVENT_LBUTTONUP and mouse_down:
             mouse_down = False
+    
+    main_window_name = f"ExtractImage ({file_path})"
+    extr_window_name = "ExtractImage - Extracted"
 
+    cv2.namedWindow(main_window_name, cv2.WINDOW_AUTOSIZE)
     cv2.setMouseCallback(main_window_name, onMouseClick)
 
     warped = None
     matrix = None
 
     while True:
-        image = image_original.copy()
+        
+        if cv2.getWindowProperty(main_window_name, cv2.WND_PROP_VISIBLE) == False:
+            # quit program
+            cv2.destroyAllWindows()
+            print("Exiting")
+            exit()
+
+        image = image_reduced.copy()
 
         for i in range(len(pointsList)):
             if i == len(pointsList) - 1 and i != 3:
@@ -165,19 +197,19 @@ def extractImage(file_path:str, out_path:str, postfix:str, size:tuple[int], grid
         for i, pt in enumerate(pointsList):
             color = np.uint8([[[i * (180 / 4), 255, 255]]])
             color = cv2.cvtColor(color, cv2.COLOR_HSV2BGR)[0, 0].tolist()
-            cv2.circle(image, (pt.x, pt.y), 3, color, -1, lineType=cv2.LINE_AA)        
+            cv2.circle(image, (pt.x, pt.y), 3, color, -1, lineType=cv2.LINE_AA)
         
         if len(pointsList) == 4:
-            warped, matrix = warpImage(image_original, pointsList, size[0], size[1])
+            warped, matrix = warpImage(image_reduced, pointsList, out_size_reduced[0], out_size_reduced[1])
             if show_grid:
-                drawGrid(image, size, grid, (255, 255, 255), 0.2, matrix)
+                drawGrid(image, out_size_reduced, grid, (255, 255, 255), 0.2, matrix)
                 
         cv2.imshow(main_window_name, image)
 
         if warped is not None:
             if show_grid:
                 warped_show = warped.copy()
-                drawGrid(warped_show, size, grid, (255, 255, 255), 0.2, None)
+                drawGrid(warped_show, out_size_reduced, grid, (255, 255, 255), 0.2, None)
             else:
                 warped_show = warped
             cv2.imshow(extr_window_name, warped_show)
@@ -187,6 +219,7 @@ def extractImage(file_path:str, out_path:str, postfix:str, size:tuple[int], grid
             cv2.destroyAllWindows()
             break
         if k == ord('q'): # quit program
+            print("Exiting")
             cv2.destroyAllWindows()
             exit()
         elif k == ord('c'): # clear point list
@@ -197,13 +230,20 @@ def extractImage(file_path:str, out_path:str, postfix:str, size:tuple[int], grid
             show_grid = not show_grid
         elif k == ord(' ') or k == ord('s'): # save extracted image
             if warped is not None:
+                scaled_pointList = [ x * (1 / scale) for x in pointsList ]
+                warped_original, _ = warpImage(image_original, scaled_pointList, out_size[0], out_size[1])
                 out_file_name = os.path.join(out_path, f"{image_name}{postfix}.{image_extensions}")
-                cv2.imwrite(out_file_name, warped)
-                print(f"Extracted image exported to: '{out_file_name}'")
+                ok = cv2.imwrite(out_file_name, warped_original)
+                if ok:
+                    print(f"Extracted image exported to: '{out_file_name}'")
+                else:
+                    print(f"Could not exported to: '{out_file_name}'")
                 if autoclose:
                     cv2.destroyAllWindows()
                     break
-       
+
+    cv2.destroyAllWindows()
+    return
 
 if __name__ == "__main__":
 
@@ -216,18 +256,20 @@ if __name__ == "__main__":
             "- Press 'g' to toggle the alignment grid.\n"\
             "- Press 's' or SPACE to save the extracted image.\n"\
             "- Press ESC to stop the current processing (go to the next image if using --folder/-f option).\n"\
-            "- Press 'q' to quit the application (stop all processings if using --folder/-f option).",
+            "- Press 'q' or click on X to quit the application (stop all processings if using --folder/-f option).",
         formatter_class=argparse.RawDescriptionHelpFormatter)  
 
     parser.add_argument("--input", "-i", type=str, help="Path of the image/folder to use as source")
     parser.add_argument("--select", type=str, default=None, help="Select only files containing the provided string (if --input is a folder)")
     parser.add_argument("--ignore", type=str, default=None, help="Ignore all files containing the provided string (if --input is a folder)")
-    parser.add_argument("--size", "-s", type=str, default="800x600", help="Output size of the extracted image (default = 800x600)")
+    parser.add_argument("--outsize", "-s", type=str, default=None, help="Output size of the extracted image (default = 800x600)")
+    parser.add_argument("--winsize", type=int, default=720, help="Max size of the windows. If width or height of the image to process exceeds this value it is automatically scaled down (default = 720)")
     parser.add_argument("--out", "-o", type=str, default=None, help="Path where to save the extracted images (default = same folder of the --input)")
     parser.add_argument("--postfix", type=str, default="_extr", help="String to append to the file name of each extracted image (default = '_extr')")
     parser.add_argument("--autoclose", action="store_true", help="If present, closes the application after completing the export.")
     parser.add_argument("--grid", type=str, default="20x20", help="Grid divisions for the perspective preview (default = 20x20)")
     parser.add_argument("--process", action="store_true", help="If present, enable processing on the extracted image.") # TODO: implement image processing with controls
+    
 
     if len(sys.argv) < 2:
         parser.print_help()
@@ -237,7 +279,9 @@ if __name__ == "__main__":
 
     supported_image_formats = ["png", "jpg", "jpeg", "bmp"]
 
-    args.size = tuple(map(int, args.size.split("x")))
+    if args.outsize is not None:
+        args.outsize = tuple(map(int, args.outsize.split("x")))
+
     args.grid = tuple(map(int, args.grid.split("x")))
 
     is_folder = os.path.isdir(args.input)
@@ -245,13 +289,15 @@ if __name__ == "__main__":
     if not is_folder:
         # SINGLE FILE INPUT
         args.input = os.path.normpath(args.input)
-        if not args.input('.')[-1] in supported_image_formats:
+        if not args.input.split('.')[-1] in supported_image_formats:
             print("ERROR: The path does not locate a supported file type")
             exit(1)
-        root_folder = os.path.join(*args.input.split(os.path.sep)[:-1])
+
         if args.out is None:
-            args.out = root_folder
-        extractImage(args.input, args.out, args.postfix, args.size, args.grid, args.autoclose, args.process)
+            root_folder = os.path.join(*args.input.split(os.path.sep)[:-1])
+            args.out = root_folder.replace(":", f":{os.path.sep}")
+
+        extractImage(args.input, args.out, args.postfix, args.outsize, args.grid, args.winsize, args.autoclose, args.process)
 
     else:
         # FOLDER INPUT (+ select and ignore filtering)
@@ -266,4 +312,4 @@ if __name__ == "__main__":
             args.out = args.input
         for i, filepath in enumerate(origins):
             print(f"Processing {i+1}/{len(origins)}: {filepath}")
-            extractImage(filepath, args.out, args.postfix, args.size, args.grid, args.autoclose, args.process)
+            extractImage(filepath, args.out, args.postfix, args.outsize, args.grid, args.winsize, args.autoclose, args.process)

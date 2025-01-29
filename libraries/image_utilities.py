@@ -64,7 +64,7 @@ def overlay_image_alpha(img, img_overlay, x, y, alpha_mask=None):
 
     img_crop = img[y1:y2, x1:x2]
     img_crop[:] = alpha * img_overlay_crop + (1.0 - alpha) * img_crop if alpha is not None else img_overlay_crop
-    
+
 
 def image_resize(image, size, letterbox=True, out=None):
     """
@@ -89,6 +89,31 @@ def image_resize(image, size, letterbox=True, out=None):
         return out
 
     return image_resized
+
+
+def get_resize_params_keep_aspect_ratio(w:int, h:int, max_size:int=1000) -> tuple[tuple[int, int], float]:
+    if w <= max_size and h <= max_size:
+        scale = 1.0
+    elif h >= w and h > max_size:
+        scale = max_size / float(h)
+        w = int(w * scale)
+        h = max_size
+    elif w > h and w > max_size:
+        scale = max_size / float(w)
+        w = max_size
+        h = int(h * scale)
+    return (w, h), scale
+
+
+def image_resize_max_keep_aspect_ratio(image:cv2.Mat, max_size:int=1000, inter:int=cv2.INTER_AREA) -> tuple[cv2.Mat, tuple[int, int], float]:
+    h, w = image.shape[:2]
+
+    dim, scale = get_resize_params_keep_aspect_ratio(w, h, max_size)
+
+    if scale == 1.0:
+        return image.copy(), dim, 1.0
+    else:
+        return cv2.resize(image, dim, interpolation=inter), dim, scale
 
 
 def stack_images(stack:list, shape:tuple=None, background:tuple=(0,0,0)) -> np.ndarray:
