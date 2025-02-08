@@ -262,13 +262,13 @@ if __name__ == "__main__":
     parser.add_argument("--input", "-i", type=str, help="Path of the image/folder to use as source")
     parser.add_argument("--select", type=str, default=None, help="Select only files containing the provided string (if --input is a folder)")
     parser.add_argument("--ignore", type=str, default=None, help="Ignore all files containing the provided string (if --input is a folder)")
-    parser.add_argument("--outsize", "-s", type=str, default=None, help="Output size of the extracted image (default = 800x600)")
+    parser.add_argument("--outsize", "-s", type=str, default=None, help="Output size of the extracted image (default = image size)")
     parser.add_argument("--winsize", type=int, default=720, help="Max size of the windows. If width or height of the image to process exceeds this value it is automatically scaled down (default = 720)")
     parser.add_argument("--out", "-o", type=str, default=None, help="Path where to save the extracted images (default = same folder of the --input)")
     parser.add_argument("--postfix", type=str, default="_extr", help="String to append to the file name of each extracted image (default = '_extr')")
     parser.add_argument("--autoclose", action="store_true", help="If present, closes the application after completing the export.")
     parser.add_argument("--grid", type=str, default="20x20", help="Grid divisions for the perspective preview (default = 20x20)")
-    parser.add_argument("--process", action="store_true", help="If present, enable processing on the extracted image.") # TODO: implement image processing with controls
+    parser.add_argument("--process", action="store_true", help="If present, enable processing on the extracted image (currently not implemented).") # TODO: implement image processing with controls
     
 
     if len(sys.argv) < 2:
