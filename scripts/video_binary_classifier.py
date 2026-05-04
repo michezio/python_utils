@@ -80,7 +80,10 @@ if __name__ == "__main__":
         "  Use 'C' to toggle classification for single frame.\n"\
         "Frames classified with FALSE (red) are exported to the path specified by --false_out.\n"\
         "Frames classified with TRUE (green) are exported to the path specified by --true_out.\n"\
-        "Use 'O' to start exporting selected frames with their classification.")
+        "Use 'O' to start exporting selected frames with their classification.\n"\
+        "Move left/right with arrow keys to navigate frames (use ','/'.' to move 5 frames at a time).\n"\
+        "Use 'ESC' to exit the application without exporting."
+    )
 
     parser.add_argument("--input", "-i", type=str, required=True, help="Path to the video file to use as source. If folder is used iterate all video files.")
     parser.add_argument("--false_out", "-f", type=str, default='./false', help="Path to export FALSE classified images")
